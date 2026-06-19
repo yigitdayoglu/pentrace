@@ -1,0 +1,42 @@
+# PentraCe — full stack: postgres + backend (FastAPI) + frontend (nginx)
+# Calistirma:  docker compose up --build
+# Arayuz:      http://localhost:8080
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pentrace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pentrace_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-pentrace}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pentrace}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-pentrace}:${POSTGRES_PASSWORD:-pentrace_secret}@db:5432/${POSTGRES_DB:-pentrace}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@pentrace.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345}
+      FREE_DAILY_SCANS: ${FREE_DAILY_SCANS:-3}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:

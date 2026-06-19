@@ -1,0 +1,7 @@
+# Masaustu (.exe) build icin ek bagimliliklar — web/docker'da gerekmez.
+# Once requirements.txt'i, sonra bunu kurun:
+#   .\.venv\Scripts\python.exe -m pip install -r requirements-desktop.txt
+-r requirements.txt
+pywebview==6.2.1
+pyinstaller==6.20.0
+pillow==12.2.0
