@@ -6,6 +6,8 @@
 ![Python](https://img.shields.io/badge/Python-3.12-3776ab)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 
+🌐 **Tanıtım sayfası:** [yigitdayoglu.github.io/pentrace](https://yigitdayoglu.github.io/pentrace/) · ⬇️ **[İndir](https://github.com/yigitdayoglu/pentrace/releases/latest)**
+
 > Bir hedef gir → otomatik keşif → zafiyet tarama → canlı dashboard + rapor.
 
 PentraCe, uçtan uca bir offensive-security pipeline'ıdır. Bir domain veya IP
