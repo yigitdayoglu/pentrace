@@ -5,7 +5,7 @@ import ResultsViz from "./ResultsViz.jsx";
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
 const SEV_LABEL = { critical: "KRITIK", high: "YUKSEK", medium: "ORTA", low: "DUSUK", info: "BILGI" };
 
-export default function Dashboard({ isAdmin, onActivity, onQuotaExceeded }) {
+export default function Dashboard() {
   const [target, setTarget] = useState("");
   const [authorized, setAuthorized] = useState(false);
   const [running, setRunning] = useState(false);
@@ -14,6 +14,7 @@ export default function Dashboard({ isAdmin, onActivity, onQuotaExceeded }) {
   const [activeId, setActiveId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [history, setHistory] = useState([]);
+  const [consentNudge, setConsentNudge] = useState(false);
   const termRef = useRef(null);
 
   async function refreshHistory() {
@@ -31,26 +32,27 @@ export default function Dashboard({ isAdmin, onActivity, onQuotaExceeded }) {
   async function onSubmit(e) {
     e.preventDefault();
     setError(""); setDetail(null); setLogs([]);
-    if (!target.trim()) { setError("Hedef bos olamaz."); return; }
-    if (!authorized) { setError("Tarama iznini onaylamaniz gerekiyor."); return; }
+    if (!target.trim()) { setError("Bir hedef gir (domain veya IP)."); return; }
+    if (!authorized) {
+      setError("Devam etmek için aşağıdaki izin kutusunu işaretle.");
+      setConsentNudge(true);
+      setTimeout(() => setConsentNudge(false), 1200);
+      return;
+    }
 
     setRunning(true);
     try {
       const res = await createScan(target.trim(), authorized);
       setActiveId(res.scan_id);
       refreshHistory();
-      onActivity && onActivity();
       streamScan(res.scan_id, (ev) => setLogs((p) => [...p, ev]), async () => {
         setRunning(false);
         await loadDetail(res.scan_id);
         refreshHistory();
-        onActivity && onActivity();
       });
     } catch (err) {
       setError(err.message);
       setRunning(false);
-      // Kota dolduysa (429) Pro yukseltme modalini ac
-      if (err.status === 429 && onQuotaExceeded) onQuotaExceeded();
     }
   }
 
@@ -65,7 +67,7 @@ export default function Dashboard({ isAdmin, onActivity, onQuotaExceeded }) {
       {/* SOL */}
       <div>
         <section className="panel">
-          <div className="panel-head"><h2>Yeni Tarama</h2><span className="idx">01</span></div>
+          <div className="panel-head"><h2>Yeni Tarama</h2></div>
           <div className="panel-body">
             <form onSubmit={onSubmit}>
               <label className="field">
@@ -73,7 +75,7 @@ export default function Dashboard({ isAdmin, onActivity, onQuotaExceeded }) {
                 <input type="text" placeholder="ornek.com" value={target}
                   onChange={(e) => setTarget(e.target.value)} disabled={running} />
               </label>
-              <label className="consent">
+              <label className={`consent${consentNudge ? " nudge" : ""}`}>
                 <input type="checkbox" checked={authorized}
                   onChange={(e) => setAuthorized(e.target.checked)} disabled={running} />
                 <span>Bu hedefi taramak icin yetkim oldugunu onayliyorum. Yetkisiz tarama
@@ -88,7 +90,10 @@ export default function Dashboard({ isAdmin, onActivity, onQuotaExceeded }) {
         </section>
 
         <section className="panel" style={{ marginTop: 24 }}>
-          <div className="panel-head"><h2>Canli Akis</h2><span className="idx">02</span></div>
+          <div className="panel-head">
+            <h2>Canli Akis</h2>
+            {running && <span className="live-dot" title="Tarama suruyor">CANLI</span>}
+          </div>
           <div className="panel-body">
             <div className="terminal" ref={termRef}>
               {logs.length === 0 && <div className="empty">$ tarama loglari burada akacak...</div>}
@@ -108,10 +113,17 @@ export default function Dashboard({ isAdmin, onActivity, onQuotaExceeded }) {
       <div className="results-col">
         <section className="panel">
           <div className="panel-head">
-            <h2>Sonuclar {activeId ? `· ${activeId}` : ""}</h2><span className="idx">03</span>
+            <h2>Sonuclar</h2>
+            {activeId && <span className="scan-tag">{activeId}</span>}
           </div>
           <div className="panel-body">
-            {!detail && <div className="empty-state">Henuz sonuc yok.<br />Bir tarama baslatin veya gecmisten secin.</div>}
+            {!detail && (
+              <div className="empty-state">
+                <div className="empty-mark">⌖</div>
+                <p>Sonuçlar burada görünecek.</p>
+                <span>Soldan bir hedef girip taramayı başlat, ya da geçmişten bir tarama seç.</span>
+              </div>
+            )}
             {detail && (
               <>
                 <ResultsViz findings={findings} assets={detail.assets || []} />
@@ -158,7 +170,7 @@ export default function Dashboard({ isAdmin, onActivity, onQuotaExceeded }) {
 
       {/* Gecmis — tam genislik */}
       <section className="history" style={{ gridColumn: "1 / -1" }}>
-        <p className="section-label">{isAdmin ? "Tarama Gecmisi (TUM KULLANICILAR)" : "Tarama Gecmisi"}</p>
+        <p className="section-label">Tarama Gecmisi</p>
         {history.length === 0 && <div className="empty-state">Henuz tarama yok.</div>}
         {history.map((h) => (
           <div className="hrow" key={h.id} onClick={() => openHistory(h.id)}>

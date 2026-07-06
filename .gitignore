@@ -32,3 +32,6 @@ backend/_desktop_test_data/
 
 # Yerel agent/araç konfigleri
 .claude/
+
+# graphify bilgi grafigi ciktilari
+graphify-out/

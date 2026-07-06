@@ -11,8 +11,15 @@ $backend = Join-Path $root "backend"
 $py = Join-Path $backend ".venv\Scripts\python.exe"
 
 if (-not (Test-Path $py)) {
-    Write-Host "Backend venv yok. Once:  cd backend; py -3.12 -m venv .venv; .\.venv\Scripts\python.exe -m pip install -r requirements.txt pywebview pyinstaller pillow" -ForegroundColor Yellow
+    Write-Host "Backend venv yok. Once:  cd backend; py -3.12 -m venv .venv; .\.venv\Scripts\python.exe -m pip install -r requirements.txt" -ForegroundColor Yellow
     exit 1
+}
+
+# PyInstaller kurulu degilse kur (build-only bagimlilik)
+& $py -m pip show pyinstaller *> $null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "PyInstaller kuruluyor..." -ForegroundColor Cyan
+    & $py -m pip install pyinstaller
 }
 
 # 1) Frontend build
@@ -31,13 +38,16 @@ $consoleFlag = if ($Console) { "--console" } else { "--windowed" }
     --add-data "../frontend/dist;frontend/dist" `
     --add-data "wordlists;backend/wordlists" `
     --collect-all webview `
+    --collect-all pythonnet `
+    --collect-all clr_loader `
+    --copy-metadata pythonnet `
     --collect-all reportlab `
     --collect-submodules uvicorn `
     --collect-submodules sqlalchemy `
+    --hidden-import clr `
     --hidden-import aiosqlite `
     --hidden-import greenlet `
     --hidden-import report `
-    --hidden-import email_service `
     desktop.py
 Pop-Location
 
