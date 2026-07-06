@@ -7,6 +7,7 @@ Ilk calistirmada nuclei template'lerini otomatik indirir.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Awaitable, Callable
 
 from config import settings
@@ -15,9 +16,31 @@ from .binaries import ensure_tool, run_tool
 
 LogFn = Callable[[str, str], Awaitable[None]]
 
+# nuclei template'leri bu surecte kuruldu mu (bir kez kontrol yeter)
+_templates_ready = False
+
 
 async def _noop_log(level: str, message: str) -> None:  # pragma: no cover
     return None
+
+
+async def _ensure_templates(path: Path, log: LogFn) -> bool:
+    """nuclei template'leri kurulu degilse indir. Templateler olmadan nuclei
+    'no templates provided' deyip 0 bulgu doner."""
+    global _templates_ready
+    if _templates_ready:
+        return True
+    tdir = Path.home() / "nuclei-templates"
+    if tdir.exists() and any(tdir.iterdir()):
+        _templates_ready = True
+        return True
+    await log("info", "nuclei template'leri ilk kez indiriliyor (~50MB, biraz surebilir)...")
+    await run_tool(path, ["-update-templates"], log, timeout=600)
+    ok = tdir.exists() and any(tdir.iterdir())
+    _templates_ready = ok
+    if not ok:
+        await log("warn", "nuclei template'leri kurulamadi — nuclei atlaniyor")
+    return ok
 
 
 # nuclei severity -> PentraCe severity
@@ -38,12 +61,19 @@ async def scan(web_targets: list[str], log: LogFn = _noop_log) -> list[dict]:
     if not path:
         return []
 
-    await log("info", f"nuclei {len(web_targets)} hedefte calisiyor (template'ler ilk seferde indirilebilir)...")
-    args = ["-silent", "-jsonl", "-duc"]  # -duc: her calistirmada template guncelleme kontrolunu atla
+    if not await _ensure_templates(path, log):
+        return []
+
+    await log("info", f"nuclei {len(web_targets)} hedefte calisiyor...")
+    # -duc: template guncelleme kontrolunu atla (zaten kurduk)
+    # -severity: 'info' seviyesini (cogunlukla teknoloji/versiyon tespiti, recon
+    #   zaten yapiyor) atla -> cok daha hizli + yuksek sinyal
+    args = ["-silent", "-jsonl", "-duc", "-severity", settings.nuclei_severity,
+            "-c", "50", "-rl", "200"]  # eszamanlilik + rate limit -> daha hizli
     for t in web_targets:
         args += ["-u", t]
 
-    out = await run_tool(path, args, log, timeout=900)
+    out = await run_tool(path, args, log, timeout=settings.nuclei_timeout)
     if not out:
         return []
 

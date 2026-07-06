@@ -172,11 +172,27 @@ async def ensure_tool(name: str, log: LogFn = _noop_log, allow_download: bool = 
         return path
 
 
+async def _drain(stream, sink: list[str]) -> None:
+    """Bir akisi satir satir oku (streaming; buffer dolup kilitlenmesin)."""
+    if stream is None:
+        return
+    while True:
+        line = await stream.readline()
+        if not line:
+            break
+        sink.append(line.decode("utf-8", "replace"))
+
+
 async def run_tool(
     path: Path, args: list[str], log: LogFn = _noop_log,
     timeout: float = 300.0, stdin_data: str | None = None,
 ) -> str | None:
-    """Tool'u calistir, stdout'u string dondur. Hata/timeout'ta None."""
+    """Tool'u calistir, stdout'u string dondur.
+
+    STREAMING: cikti satir satir okunur. Timeout'ta surec oldurulur ama O ANA
+    KADAR toplanan cikti KORUNUR (nuclei gibi akan tool'lar icin kritik — zaman
+    siniri icinde bulunan bulgular kaybolmaz). Calistirma hatasinda None doner.
+    """
     try:
         proc = await asyncio.create_subprocess_exec(
             str(path), *args,
@@ -188,18 +204,36 @@ async def run_tool(
     except Exception as e:
         await log("warn", f"{path.name} calistirilamadi: {e}")
         return None
+
+    out_lines: list[str] = []
+    err_lines: list[str] = []
+    if stdin_data is not None and proc.stdin is not None:
+        try:
+            proc.stdin.write(stdin_data.encode("utf-8", "replace"))
+            await proc.stdin.drain()
+            proc.stdin.close()
+        except Exception:
+            pass
+
+    readers = asyncio.gather(_drain(proc.stdout, out_lines), _drain(proc.stderr, err_lines))
     try:
-        inp = stdin_data.encode("utf-8", "replace") if stdin_data is not None else None
-        out, err = await asyncio.wait_for(proc.communicate(input=inp), timeout=timeout)
+        await asyncio.wait_for(readers, timeout=timeout)
+        rc = await proc.wait()
     except asyncio.TimeoutError:
+        # wait_for zaten readers'i iptal etti; surec oldur, kismi ciktiyi koru
         try:
             proc.kill()
         except Exception:
             pass
-        await log("warn", f"{path.name} zaman asimina ugradi ({timeout:.0f}s)")
+        try:
+            await readers
+        except (asyncio.CancelledError, Exception):
+            pass
+        await log("warn", f"{path.name} zaman asimina ugradi ({timeout:.0f}s) — o ana kadarki sonuclar kullaniliyor")
+        return "".join(out_lines)  # kismi cikti korunur
+
+    if rc not in (0, None) and not out_lines:
+        tail = [l for l in "".join(err_lines).strip().splitlines() if l.strip()]
+        await log("warn", f"{path.name} hata dondu: {(tail[-1] if tail else 'bilinmeyen')}")
         return None
-    if proc.returncode not in (0, None) and not out:
-        msg = (err or b"").decode("utf-8", "replace").strip().splitlines()
-        await log("warn", f"{path.name} hata dondu: {(msg[-1] if msg else 'bilinmeyen')}")
-        return None
-    return (out or b"").decode("utf-8", "replace")
+    return "".join(out_lines)

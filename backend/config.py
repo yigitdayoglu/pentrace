@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     # tools_auto_download: tool bulunamazsa resmi GitHub release'inden indir (SHA256 dogrulamali).
     external_tools: bool = True
     tools_auto_download: bool = True
+    # nuclei kapsami: 'info' seviyesi cok sayida + dusuk sinyal (teknoloji/versiyon
+    # tespiti) oldugu icin varsayilan disi. Tam kapsam istersen "info,low,medium,high,critical".
+    nuclei_severity: str = "low,medium,high,critical"
+    nuclei_timeout: float = 300.0  # streaming: sinira ulasilirsa o ana kadarki bulgular korunur
 
 
 settings = Settings()
