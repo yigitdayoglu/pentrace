@@ -32,10 +32,28 @@ engine = create_async_engine(settings.database_url, echo=False, connect_args=_co
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
+def _legacy_schema(sync_conn) -> bool:
+    """Eski (auth'lu) semayi tespit et: scans tablosunda artik olmayan
+    user_id kolonu varsa DB eski surumden kalmadir ve yeni kodla uyumsuzdur."""
+    from sqlalchemy import inspect
+    insp = inspect(sync_conn)
+    if "scans" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("scans")}
+        return "user_id" in cols
+    return False
+
+
 async def init_db() -> None:
-    """Tablolari olustur (idempotent). models import edilmis olmali."""
+    """Tablolari olustur (idempotent). models import edilmis olmali.
+
+    Eski auth semasindan kalma uyumsuz bir DB varsa (scans.user_id NOT NULL),
+    tarama baslatirken 500 verir. Bu durumda tablolari sifirla — masaustu
+    surumunde tarama verisi geçicidir, kayip onemsizdir.
+    """
     import models  # noqa: F401 — modelleri Base'e kaydet
     async with engine.begin() as conn:
+        if await conn.run_sync(_legacy_schema):
+            await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 
