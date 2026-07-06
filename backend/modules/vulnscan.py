@@ -328,5 +328,13 @@ async def run_vulnscan(web_targets: list[str], log: LogFn = _noop_log) -> list[d
             for group in results:
                 all_findings.extend(group)
 
+    # Harici tool (nuclei) — yerlesik kontrollere EK template-tabanli tarama.
+    # Tool yoksa bos doner; yerlesik bulgular etkilenmez.
+    from modules.tools import nuclei
+    nuclei_findings = await nuclei.scan(web_targets, log)
+    for f in nuclei_findings:
+        f["module"] = "nuclei"
+    all_findings.extend(nuclei_findings)
+
     await log("info", f"Zafiyet taramasi tamamlandi: {len(all_findings)} bulgu")
     return all_findings

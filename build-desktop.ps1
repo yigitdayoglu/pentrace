@@ -44,6 +44,7 @@ $consoleFlag = if ($Console) { "--console" } else { "--windowed" }
     --collect-all reportlab `
     --collect-submodules uvicorn `
     --collect-submodules sqlalchemy `
+    --collect-submodules modules `
     --hidden-import clr `
     --hidden-import aiosqlite `
     --hidden-import greenlet `

@@ -81,7 +81,7 @@ async def run_pipeline(scan_id: str, target: str) -> None:
 
         for f in findings:
             await models.add_finding(
-                scan_id, module="vulnscan", severity=f["severity"],
+                scan_id, module=f.get("module", "vulnscan"), severity=f["severity"],
                 title=f["title"], detail=f["detail"], target=f["target"],
             )
 

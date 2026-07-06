@@ -17,6 +17,8 @@ from typing import Awaitable, Callable
 
 import httpx
 
+from modules.tools import naabu, subfinder
+
 LogFn = Callable[[str, str], Awaitable[None]]  # (level, message)
 
 import sys as _sys, os as _os
@@ -112,6 +114,9 @@ async def discover_subdomains(domain: str, log: LogFn = _noop_log) -> list[dict]
     async with httpx.AsyncClient(verify=False) as client:
         await log("info", f"crt.sh sorgulaniyor: {domain}")
         candidates |= await _crtsh_subdomains(domain, client)
+
+    # subfinder (varsa) — pasif kaynaklardan ek adaylar
+    candidates |= set(await subfinder.discover(domain, log))
 
     wl = WORDLIST_DIR / "subdomains.txt"
     if wl.exists():
@@ -263,7 +268,9 @@ async def run_recon(target: str, log: LogFn = _noop_log) -> dict:
     web_targets: list[str] = []
 
     for host in scan_hosts:
-        ports_by_host[host] = await scan_ports(host, log=log)
+        # naabu (varsa) yerlesik tarayicinin yerine gecer; None ise fallback
+        naabu_ports = await naabu.scan(host, log)
+        ports_by_host[host] = naabu_ports if naabu_ports is not None else await scan_ports(host, log=log)
         fps = await fingerprint_http(host, log, open_ports=ports_by_host[host])
         if fps:
             http_by_host[host] = fps

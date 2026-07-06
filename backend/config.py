@@ -13,5 +13,12 @@ class Settings(BaseSettings):
     # Veritabani — masaustunde %APPDATA%/PentraCe/pentrace.db (desktop.py ayarlar)
     database_url: str = "sqlite+aiosqlite:///./pentrace.db"
 
+    # Harici tool entegrasyonu (ProjectDiscovery: nuclei/subfinder/naabu).
+    # external_tools: acikken PATH'te ya da %APPDATA%/PentraCe/bin'de tool aranir,
+    #   varsa yerlesik kontrollere ek/alternatif olarak kullanilir.
+    # tools_auto_download: tool bulunamazsa resmi GitHub release'inden indir (SHA256 dogrulamali).
+    external_tools: bool = True
+    tools_auto_download: bool = True
+
 
 settings = Settings()
