@@ -4,12 +4,13 @@
 ![Platform](https://img.shields.io/badge/platform-Windows-0a0e0f)
 ![Python](https://img.shields.io/badge/Python-3.12-3776ab)
 ![React](https://img.shields.io/badge/React-18-61dafb)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)
 
 > Bir hedef gir → otomatik keşif → zafiyet tarama → canlı dashboard + PDF rapor.
 
-PentraCe, **kurulumsuz, sunucusuz, ücretsiz** bir masaüstü güvenlik aracıdır.
-Tek `.exe` indir, çift tıkla, kullan. **Üyelik yok, login yok, abonelik yok, limit yok.**
-Taramalar tamamen senin makinende çalışır; hiçbir veri dışarı çıkmaz.
+PentraCe, kurulumsuz ve sunucusuz çalışan bir masaüstü güvenlik tarama aracıdır.
+Tek `.exe` indirilir, çift tıklanır ve kullanılır — üyelik, login ya da abonelik yok.
+Bütün tarama kullanıcının kendi makinesinde koşar; hiçbir veri dışarı gönderilmez.
 
 ![PentraCe dashboard](docs/screenshot.png)
 
@@ -17,9 +18,21 @@ Taramalar tamamen senin makinende çalışır; hiçbir veri dışarı çıkmaz.
 
 ## ⚠️ Etik ve Yasal Uyarı
 
-PentraCe'yi **yalnızca sana ait veya açık yazılı izin verdiğin** sistemlerde kullan.
-Yetkisiz tarama çoğu ülkede suçtur ve tüm sorumluluk kullanıcıya aittir. Bu proje
-eğitim ve yetkili güvenlik testleri içindir.
+PentraCe'yi **yalnızca sana ait olan veya açık yazılı izin aldığın** sistemlerde kullan.
+Yetkisiz tarama çoğu ülkede suçtur ve sorumluluk tümüyle kullanıcıya aittir. Bu proje
+eğitim ve yetkili güvenlik testleri için yazıldı.
+
+---
+
+## Ekran Görüntüleri
+
+| Karşılama ekranı | PDF rapor çıktısı |
+|:---:|:---:|
+| <img src="docs/welcome.jpg" alt="Karşılama ekranı" width="420"> | <img src="docs/report.png" alt="PDF rapor" width="420"> |
+| İlk açılışta gösterilen, login gerektirmeyen giriş ekranı. | Her taramanın PDF ve JSON olarak dışa aktarılabilen raporu. |
+
+Ana dashboard yukarıdaki hero görselinde: hedef girişi, Server-Sent Events ile akan
+canlı log ve önem derecesine göre gruplanmış bulgu kartları tek ekranda.
 
 ---
 
@@ -27,22 +40,67 @@ eğitim ve yetkili güvenlik testleri içindir.
 
 | Aşama | İçerik |
 |-------|--------|
-| **Recon** | Subdomain keşfi (crt.sh + wordlist), asyncio port tarama, HTTP başlık &amp; teknoloji parmak izi |
+| **Recon** | Subdomain keşfi (crt.sh + wordlist), `asyncio` port tarama, HTTP başlık &amp; teknoloji parmak izi |
 | **Zafiyet Tarama** | SQL injection, XSS, open redirect, dizin bruteforce, SSRF, eksik güvenlik başlıkları |
-| **Dashboard** | Server-Sent Events ile canlı log, severity grafiği, bulgu kartları |
-| **Rapor** | Önem derecesine göre skorlama → PDF / JSON |
+| **Harici Araçlar** | İsteğe bağlı ProjectDiscovery entegrasyonu — `subfinder`, `naabu`, `nuclei` otomatik tespit edilir; yoksa yerleşik kontrole geri döner |
+| **Dashboard** | Canlı log akışı, severity grafiği, önem derecesine göre bulgu kartları |
+| **Rapor** | Skorlanmış bulgular → PDF / JSON dışa aktarma |
 
-Port tarama saf `asyncio` ile yapılır — harici `nmap` gerekmez.
+Port tarama saf `asyncio` ile yapılır, harici `nmap` gerektirmez. ProjectDiscovery
+araçları kurulu değilse resmi GitHub release'inden indirilir ve SHA256 ile doğrulanır;
+indirme kapalıysa tarama yerleşik kontrollerle devam eder.
+
+---
+
+## Nasıl çalışır
+
+```
+  Hedef (domain / IP)
+        │
+        ▼
+  ┌─────────────┐   subdomain · port · fingerprint
+  │   RECON     │   (crt.sh, asyncio, subfinder/naabu)
+  └─────┬───────┘
+        ▼
+  ┌─────────────┐   SQLi · XSS · redirect · dir-brute
+  │  VULNSCAN   │   · SSRF · headers · nuclei
+  └─────┬───────┘
+        ▼
+  ┌─────────────┐   SQLite kayıt + SSE canlı akış
+  │  PIPELINE   │   (async orchestrator)
+  └─────┬───────┘
+        ▼
+  Dashboard  +  PDF / JSON rapor
+```
+
+Backend `pipeline.py` içinde bir async orchestrator olarak çalışır: recon çıktısını
+vulnscan'e besler, her adımı SQLite'a yazar ve aynı anda Server-Sent Events üzerinden
+arayüze canlı olarak akıtır.
+
+---
+
+## Teknoloji Yığını
+
+| Katman | Kullanılan |
+|--------|-----------|
+| **Backend** | Python 3.12, FastAPI, SQLAlchemy (async) + SQLite, `httpx`, BeautifulSoup |
+| **Frontend** | React 18, Vite 6 (framework'süz, hafif) |
+| **Rapor** | ReportLab (PDF) |
+| **Masaüstü** | PyWebView + WebView2, tek dosya paketleme için PyInstaller |
+| **Harici araçlar** | ProjectDiscovery `subfinder` · `naabu` · `nuclei` (opsiyonel) |
+
+Backend, arayüz ve SQLite tek bir `.exe` içinde paketlenir ve Windows'un yerleşik
+WebView2 bileşeninde native bir pencerede açılır.
 
 ---
 
 ## Kurulum
 
-**İndir, çift tıkla:** [Releases](../../releases/latest) sayfasından `PentraCe.exe`'yi indir.
-Kurulum sihirbazı yok; aç → karşılama ekranı → kullan. Tüm veri `%APPDATA%\PentraCe`
-altında tutulur (DB + raporlar).
+**İndir, çift tıkla:** derlenmiş `PentraCe.exe`'yi çalıştırman yeterli. Kurulum
+sihirbazı yok — aç, karşılama ekranını geç, kullan. Bütün veri `%APPDATA%\PentraCe`
+altında tutulur (SQLite veritabanı + raporlar).
 
-> İmzasız bir `.exe` olduğu için Windows SmartScreen uyarısı çıkabilir:
+> İmzasız bir `.exe` olduğu için Windows SmartScreen uyarısı verebilir:
 > *Daha fazla bilgi → Yine de çalıştır*.
 
 ---
@@ -70,8 +128,7 @@ cd ..\frontend; npm install; npm run dev                      # 2. pencere → h
 # .\build-desktop.ps1 -Console # hata ayıklama (konsollu)
 ```
 
-Çıktı: **`backend/dist/PentraCe.exe`**. Backend + arayüz + SQLite tek dosyada;
-Windows'un yerleşik **WebView2**'sinde native pencerede açılır.
+Çıktı: **`backend/dist/PentraCe.exe`**.
 
 ---
 
@@ -89,7 +146,8 @@ pentrace/
 │   ├── db.py · config.py · paths.py
 │   ├── modules/
 │   │   ├── recon.py        # subdomain, port, fingerprint
-│   │   └── vulnscan.py     # SQLi, XSS, redirect, dir-brute, SSRF, headers
+│   │   ├── vulnscan.py     # SQLi, XSS, redirect, dir-brute, SSRF, headers
+│   │   └── tools/          # ProjectDiscovery adapter'ları (subfinder/naabu/nuclei)
 │   ├── wordlists/
 │   └── tests/
 └── frontend/
